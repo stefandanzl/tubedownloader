@@ -181,7 +181,7 @@ def download_file(url):
 
 def htmlparser(htmlfile):
     episodelist = []
-    with open(htmlfile,"r") as f:
+    with open(htmlfile,"r", encoding="utf-8") as f:
         
         soup = BeautifulSoup(f, "html.parser")
         soup.find_all("a", class_="element")
@@ -230,12 +230,18 @@ def curl(website):
 
 
 
-def chunklist_options(chunklisturl):
-    chunklist = requests.get(chunklisturl)
+def chunklist_options(episodeid):
+    chunklisturl = "https://wowza.tugraz.at/matterhorn_engage/smil:engage-player_"+ episodeid +"_presenter.smil/"
+    chunklist = requests.get(chunklisturl+"playlist.m3u8")
     #chunklist = curl(chunklisturl) #requests.get(chunklisturl)
-    print(chunklist.text)
+    if not chunklist:
+        print("URL ERROR")
+        chunklisturl = "https://wowza.tugraz.at/matterhorn_engage/smil:engage-player_"+ episodeid +"_presentation.smil/"
+        chunklist = requests.get(chunklisturl+"playlist.m3u8")
+        print(chunklist.text)
     #input()
     variant_m3u8 = m3u8.loads(chunklist.text)
+    print(chunklisturl)
     print("Chunklist.text",chunklist.text)
     print("VARIANT",variant_m3u8.is_variant)    # in this case will be True
     if not variant_m3u8.is_variant:
@@ -263,14 +269,16 @@ def chunklist_options(chunklisturl):
             chunklist_chosen = str(playlist)[a:b]+"8"
             print("|>",chunklist_chosen)
     
-    return chunklist_chosen
+    return chunklisturl+chunklist_chosen
 
 
 
 
 
-def download_merge(id,chunklist,title):
-    m3u8_url = 'https://wowza.tugraz.at/matterhorn_engage/smil:engage-player_'+id+'_presenter.smil/'+chunklist #chunklist_w656979502_b2130322.m3u8'
+def download_merge(chunklist,title):
+    #m3u8_url = 'https://wowza.tugraz.at/matterhorn_engage/smil:engage-player_'+id+'_presenter.smil/'+chunklist #chunklist_w656979502_b2130322.m3u8'
+    
+    m3u8_url = chunklist #chunklist_w656979502_b2130322.m3u8'
     r = requests.get(m3u8_url)
     m3u8_master = m3u8.loads(r.text)
     #print(m3u8_master.data['segments'])
@@ -340,7 +348,9 @@ def download_merge(id,chunklist,title):
 
     try:
         ffmpeg.input('concat.txt', format='concat', safe=0).output(name+'.mp4', c='copy').run(capture_stdout=True, capture_stderr=True)
- 
+        print("concatentating finished.")
+        progress = "Concatenating finished!"
+        progresslabel.config(text=progress)
         #ffmpeg.run(capture_stdout=True, capture_stderr=True)
     except ffmpeg.Error as e:
         print('stdout:', e.stdout.decode('utf8'))
@@ -386,14 +396,17 @@ def playlist():
             cur_file += 1
             chunklisturl = "https://wowza.tugraz.at/matterhorn_engage/smil:engage-player_"+ episodes[e][0] +"_presenter.smil/playlist.m3u8"
             #print(chunklisturl)
-            
-            chosen_chunklist = chunklist_options(chunklisturl)
+            episodeid = episodes[e][0]
+            chosen_chunklist = chunklist_options(episodeid)
             if chosen_chunklist == "error":
                 continue
+                #chunklisturl = "https://wowza.tugraz.at/matterhorn_engage/smil:engage-player_"+ episodes[e][0] +"_presentation.smil/playlist.m3u8"
+                #chosen_chunklist = chunklist_options(chunklisturl)
             episodes[e].append( chosen_chunklist)    #address of chosen chunklist quality gets stored
 
             
-            download_merge(episodes[e][0],chosen_chunklist,episodes[e][1])
+            download_merge(chosen_chunklist,episodes[e][1])
+            #download_merge(episodes[e][0],chosen_chunklist,episodes[e][1])
     global downloading
     downloading = 0
     progresslabel.config(text="Download complete!")
